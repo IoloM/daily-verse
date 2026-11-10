@@ -1,0 +1,7 @@
+.DS_Store
+supabase/.db-password
+supabase/.temp/
+supabase/.branches/
+.claude/
+node_modules/
+_harness*

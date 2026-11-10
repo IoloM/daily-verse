@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Daily Verse</title>
+  <meta name="description" content="A Bible passage, a short reflection and a prayer for each day, with a discussion anyone can join.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="Daily Verse">
+  <meta property="og:description" content="A Bible passage, a short reflection and a prayer for each day. Read it and join the discussion.">
+  <meta property="og:url" content="https://iolom.github.io/daily-verse/">
+  <meta property="og:image" content="https://iolom.github.io/daily-verse/assets/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="theme-color" content="#f7f3ec" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131210" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
+  <link rel="icon" href="assets/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,500;0,7..72,600;1,7..72,400&display=swap">
+  <link rel="stylesheet" href="assets/style.css?v=1">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the passage</a>
+
+  <header class="site-header">
+    <div class="wrap">
+      <a class="brand" href="#/">
+        <img class="brand-mark" src="assets/icon.svg" alt="" width="40" height="40">
+        <span class="brand-text">
+          <span class="brand-title" data-site-title>Daily Verse</span>
+          <span class="brand-tagline" data-site-tagline>A Bible passage, a short reflection and a prayer for each day.</span>
+        </span>
+      </a>
+      <nav class="tabs" aria-label="Main">
+        <a href="#/" data-nav="today">Today</a>
+        <a href="#/past" data-nav="past">Past days</a>
+        <a href="admin.html" class="admin-pill" data-admin-only hidden>Admin</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" class="wrap" tabindex="-1">
+    <div id="view">
+      <div class="loading" role="status"><div class="spinner" aria-hidden="true"></div><span class="sr-only">Loading</span></div>
+    </div>
+    <noscript><p class="notice">This site needs JavaScript turned on to show the daily passage.</p></noscript>
+  </main>
+
+  <footer class="wrap site-footer">
+    <span><span data-site-title>Daily Verse</span> &middot; a new passage every day</span>
+    <a href="admin.html" data-visitor-only>Admin</a>
+  </footer>
+
+  <script src="assets/vendor/supabase.js"></script>
+  <script src="assets/config.js?v=1"></script>
+  <script src="assets/common.js?v=1"></script>
+  <script src="assets/app.js?v=1"></script>
+</body>
+</html>
