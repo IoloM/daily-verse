@@ -20,7 +20,11 @@ Anyone with the link can read it and comment by typing their name. No account ne
 - The **first account ever created becomes the admin**. After that, the database refuses new accounts.
 - Videos: a YouTube, Vimeo or Google Drive link is embedded; files can also be uploaded (50 MB limit) to the
   public `videos` storage bucket (admin only).
-- "Fill in the verse text" uses the free bible-api.com (World English Bible, KJV, BBE).
+- Bible text is **NIV or ESV** (UK/Anglicised editions). There's no free automatic feed that fits a site keeping every day's text,
+  so the editor's "Open …" button opens the passage on Bible Gateway and the verse box tidies pasted text
+  (removes footnote/cross-reference letters, makes verse numbers small: `cleanPastedVerses` in `assets/common.js`).
+  Biblica and Crossway each allow up to 500 quoted verses without asking, with the copyright notices in the footer;
+  Settings shows a running count.
 
 ## Files
 

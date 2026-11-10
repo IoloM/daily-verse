@@ -136,10 +136,96 @@
     'CSB', 'NASB', 'NASB1995', 'WEB', 'GNT', 'NCV', 'ERV', 'ICB', 'CEV', 'RSV', 'ASV', 'YLT', 'BBE', 'NET', 'TPT', 'NLV', 'NIRV', 'CEB', 'DLNT'];
   function bibleGatewayUrl(reference, translation) {
     var chapter = String(reference || '').replace(/\(.*?\)/g, '').split(/[;,]/)[0].replace(/:.*/, '').trim();
+    return passageUrl(chapter, translation);
+  }
+  // NIV and ESV open in their UK (Anglicised) editions.
+  function passageUrl(reference, translation) {
     var v = String(translation || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-    if (v === 'WEBBE') v = 'WEB';
-    if (BG_VERSIONS.indexOf(v) < 0) v = 'NIVUK';
-    return 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(chapter) + '&version=' + v;
+    if (v === 'NIV') v = 'NIVUK';
+    else if (v === 'ESV') v = 'ESVUK';
+    else if (v === 'WEBBE') v = 'WEB';
+    if (v !== 'NIVUK' && v !== 'ESVUK' && BG_VERSIONS.indexOf(v) < 0) v = 'NIVUK';
+    return 'https://www.biblegateway.com/passage/?search=' + encodeURIComponent(String(reference || '').trim()) + '&version=' + v;
+  }
+
+  // "John 3:16-17" -> {chapter: 3, from: 16, to: 17}; "Psalm 23" -> {chapter: 23, from: 1, to: null} (whole chapter).
+  // Anything spanning chapters or several parts gives null.
+  function parseVerseRange(reference) {
+    var r = String(reference || '').replace(/\(.*?\)/g, '').trim();
+    if (/[;,]/.test(r) || (r.match(/:/g) || []).length > 1) return null;
+    var m = r.match(/(\d+)\s*:\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*$/);
+    if (m) {
+      var from = Number(m[2]);
+      var to = m[3] ? Number(m[3]) : from;
+      return to >= from ? { chapter: Number(m[1]), from: from, to: to } : null;
+    }
+    var c = r.match(/\s(\d+)\s*$/);
+    return c ? { chapter: Number(c[1]), from: 1, to: null } : null;
+  }
+
+  // Roughly how many verses a day quotes (used to keep an eye on the publishers' 500-verse allowance).
+  function verseCount(reference, text) {
+    var r = parseVerseRange(reference);
+    if (r && r.to != null) return r.to - r.from + 1;
+    var marks = String(text || '').match(/[⁰¹²³⁴⁵⁶⁷⁸⁹]+/g);
+    return marks ? marks.length : 1;
+  }
+
+  // Tidies text copied from a Bible website: drops footnote letters like [a] and cross-reference
+  // letters like (A), the footnotes/cross-references lists and title lines, and turns the verse
+  // numbers that belong to the reference into small superscript numbers.
+  function cleanPastedVerses(raw, reference) {
+    var lines = String(raw || '').replace(/\r\n?/g, '\n').replace(/[   ]/g, ' ').split('\n');
+    var kept = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (/^(footnotes|cross references|cross-references)\b/i.test(line)) break;
+      if (/^read full chapter$/i.test(line)) continue;
+      if (line.length < 100 && /(new international version|english standard version|\bNIVUK\b|\bESVUK\b|\(NIV\)|\(ESV\))/i.test(line) &&
+          !/[.;!?]\s*\S/.test(line.replace(/\(.*?\)/g, ''))) continue;
+      kept.push(line);
+    }
+    var t = kept.join('\n')
+      .replace(/\[[a-z]{1,3}\]/g, '')
+      .replace(/\(([A-Z]{1,3})\)/g, '')
+      .split('\n')
+      .map(function (l) { return l.replace(/[ \t]+/g, ' ').replace(/ ([,.;:!?’”])/g, '$1').trim(); })
+      .join('\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/\s*\((?:[1-3] )?[A-Za-z][^()]*\d+:\d+[^()]*\)\s*$/, '') // a trailing "(John 3:16 NIVUK)"
+      .trim();
+    var r = parseVerseRange(reference);
+    if (!r || !t) return t;
+    if (r.to === r.from) {
+      // a single verse needs no number
+      return t.replace(new RegExp('^(' + r.from + '|' + r.chapter + ')\\s+'), '');
+    }
+    var pos = 0;
+    var n = r.from;
+    var last = r.to == null ? 200 : r.to;
+    if (r.from === 1) {
+      // a passage that starts a chapter often shows the chapter number instead of "1"
+      var lead = t.match(/^(\d+)\s/);
+      if (lead && (Number(lead[1]) === r.chapter || Number(lead[1]) === 1)) {
+        t = toSup(1) + t.slice(lead[1].length);
+        pos = toSup(1).length;
+        n = 2;
+      }
+    }
+    for (; n <= last; n++) {
+      var re = new RegExp('(^|[\\s“"‘(\\[—–-])' + n + '(?=\\s)', 'g');
+      re.lastIndex = pos;
+      var m = re.exec(t);
+      if (!m) {
+        if (r.to == null) break;
+        continue;
+      }
+      var at = m.index + m[1].length;
+      var sup = toSup(n);
+      t = t.slice(0, at) + sup + t.slice(at + String(n).length);
+      pos = at + sup.length;
+    }
+    return t;
   }
 
   // ---------- video ----------
@@ -275,6 +361,10 @@
     initial: initial,
     hue: hue,
     bibleGatewayUrl: bibleGatewayUrl,
+    passageUrl: passageUrl,
+    parseVerseRange: parseVerseRange,
+    verseCount: verseCount,
+    cleanPastedVerses: cleanPastedVerses,
     parseVideo: parseVideo,
     videoHtml: videoHtml,
     toast: toast,

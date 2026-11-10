@@ -11,13 +11,9 @@
   var POST_COLS = 'id,post_date,title,reference,translation,verse_text,reflection,prayer,video_url,updated_at';
   var STORAGE_PREFIX = cfg.supabaseUrl + '/storage/v1/object/public/videos/';
   var MAX_UPLOAD = 50 * 1024 * 1024;
-  var FETCH_TRANSLATIONS = [
-    ['webbe', 'World English Bible (British)', 'WEB'],
-    ['kjv', 'King James Version', 'KJV'],
-    ['bbe', 'Bible in Basic English', 'BBE'],
-    ['web', 'World English Bible (American)', 'WEB']
-  ];
-  var LAST_TR_KEY = 'dv:fetch-translation';
+  var TRANSLATIONS = ['NIV', 'ESV'];
+  var LAST_TR_KEY = 'dv:translation';
+  var OPEN_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5M19 5l-8 8M10 6H6a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1v-4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
   var recovery = DV.wasRecovery;
   var inDashboard = false;
@@ -430,6 +426,12 @@
           '<p class="muted small">Share this link. Anyone can read the passages and join the discussion — no account needed.</p>' +
           '<div class="copy-row"><input readonly value="' + esc(siteUrl()) + '" aria-label="Site address" data-url>' +
           '<button class="btn" type="button" data-copy>Copy</button></div></div>' +
+        '<div class="card stack"><h2>Bible text</h2>' +
+          '<p class="small" data-counts>Counting the verses you’ve used…</p>' +
+          '<p class="muted small">Biblica (NIV) and Crossway (ESV) each let you quote up to 500 verses on the site without asking, ' +
+            'as long as their copyright notice is shown. It’s added at the bottom of every page for you. If you get close to 500 for either one, send them a permission request: ' +
+            '<a href="https://www.biblica.com/permissions/" target="_blank" rel="noopener">NIV</a> · ' +
+            '<a href="https://www.crossway.org/permissions/" target="_blank" rel="noopener">ESV</a>.</p></div>' +
         '<form class="card stack" data-settings novalidate><h2>Name and description</h2>' +
           '<div class="field"><label for="st-title">Site name</label><input id="st-title" name="site_title" maxlength="60" required value="' + esc(s.site_title) + '"></div>' +
           '<div class="field"><label for="st-tag">Short description</label><input id="st-tag" name="tagline" maxlength="200" value="' + esc(s.tagline) + '"></div>' +
@@ -439,6 +441,21 @@
           '<div class="field"><label for="np2">Type it again</label><input id="np2" type="password" name="p2" minlength="8" autocomplete="new-password" required></div>' +
           '<p class="form-msg" data-msg role="status"></p><div><button class="btn" type="submit">Change password</button></div></form>' +
       '</div>';
+
+    sb.from('posts').select('reference,translation,verse_text').limit(5000).then(function (res) {
+      var el = panel.querySelector('[data-counts]');
+      if (!el) return;
+      if (res.error) { el.textContent = 'Couldn’t count the verses just now.'; return; }
+      var totals = {};
+      res.data.forEach(function (p) {
+        var t = p.translation || 'other';
+        totals[t] = (totals[t] || 0) + DV.verseCount(p.reference, p.verse_text);
+      });
+      el.innerHTML = 'Quoted so far: ' + TRANSLATIONS.map(function (t) {
+        var n = totals[t] || 0;
+        return '<strong>' + t + '</strong> about ' + n + ' verse' + (n === 1 ? '' : 's') + (n >= 450 ? ' (nearly at 500)' : '');
+      }).join(' · ') + '.';
+    });
 
     panel.querySelector('[data-copy]').addEventListener('click', async function () {
       var input = panel.querySelector('[data-url]');
@@ -495,9 +512,19 @@
     wireEditor(res.data, date);
   }
 
+  function translationOptions(current) {
+    var list = TRANSLATIONS.slice();
+    if (current && list.indexOf(current) < 0) list.push(current); // keep an older day's translation selectable
+    return list.map(function (t) {
+      return '<label class="seg-option"><input type="radio" name="translation" value="' + esc(t) + '"' +
+        (t === current ? ' checked' : '') + '><span>' + esc(t) + '</span></label>';
+    }).join('');
+  }
+
   function editorHtml(p, date) {
     p = p || {};
-    var lastTr = DV.lsGet(LAST_TR_KEY, 'webbe');
+    var tr = p.id ? (p.translation || '') : DV.lsGet(LAST_TR_KEY, 'NIV');
+    if (!p.id && TRANSLATIONS.indexOf(tr) < 0) tr = 'NIV';
     return '<div class="editor">' +
       '<div class="panel-head"><div><a class="small back" href="#schedule">← Schedule</a>' +
         '<h1 data-editor-title>' + (p.id ? 'Edit passage' : 'Add a passage') + '</h1><p class="lede" data-status></p></div></div>' +
@@ -508,19 +535,18 @@
             '<input id="e-title" name="title" maxlength="120" value="' + esc(p.title || '') + '" placeholder="e.g. Peace in the storm"></div>' +
         '</div>' +
         '<fieldset class="fieldset"><legend>Bible passage</legend>' +
-          '<div class="field"><label for="e-ref">Reference</label>' +
-            '<input id="e-ref" name="reference" maxlength="120" required value="' + esc(p.reference || '') + '" placeholder="e.g. John 3:16-17" autocomplete="off"></div>' +
-          '<div class="fetch-row"><label class="sr-only" for="e-fetch-tr">Translation to fill in</label>' +
-            '<select id="e-fetch-tr" name="fetch_tr">' + FETCH_TRANSLATIONS.map(function (t) {
-              return '<option value="' + t[0] + '"' + (t[0] === lastTr ? ' selected' : '') + '>' + t[1] + '</option>';
-            }).join('') + '</select>' +
-            '<button type="button" class="btn" data-fetch>Fill in the verse text</button></div>' +
+          '<div class="grid-ref">' +
+            '<div class="field"><label for="e-ref">Reference</label>' +
+              '<input id="e-ref" name="reference" maxlength="120" required value="' + esc(p.reference || '') + '" placeholder="e.g. John 3:16-17" autocomplete="off"></div>' +
+            '<div class="field"><span class="field-label" id="e-tr-label">Translation</span>' +
+              '<div class="seg" role="radiogroup" aria-labelledby="e-tr-label">' + translationOptions(tr) + '</div></div>' +
+          '</div>' +
+          '<div class="open-row"><a class="btn" data-open-bg target="_blank" rel="noopener">' + OPEN_ICON + '<span data-open-label>Open the passage</span></a></div>' +
+          '<p class="hint">This opens the passage on Bible Gateway. Copy the verses there, then paste them into the box below. ' +
+            'Footnote letters are removed and the verse numbers made small for you.</p>' +
           '<p class="form-msg" data-fetch-msg role="status"></p>' +
           '<div class="field"><label for="e-text">Verse text</label>' +
-            '<textarea id="e-text" name="verse_text" rows="5" required>' + esc(p.verse_text || '') + '</textarea>' +
-            '<p class="hint">Using a different translation, like NIV? Paste the text in yourself and type its name below.</p></div>' +
-          '<div class="field narrow"><label for="e-tr">Translation <span class="opt">optional</span></label>' +
-            '<input id="e-tr" name="translation" maxlength="40" value="' + esc(p.translation || '') + '" placeholder="e.g. NIV"></div>' +
+            '<textarea id="e-text" name="verse_text" rows="6" required placeholder="Paste the verses here">' + esc(p.verse_text || '') + '</textarea></div>' +
         '</fieldset>' +
         '<div class="field"><label for="e-reflection">Reflection <span class="opt">a few thoughts on the passage</span></label>' +
           '<textarea id="e-reflection" name="reflection" rows="8">' + esc(p.reflection || '') + '</textarea>' +
@@ -560,7 +586,8 @@
     var delBtn = panel.querySelector('[data-delete]');
     var videoBox = panel.querySelector('[data-video-preview]');
     var clearBtn = panel.querySelector('[data-clear-video]');
-    var fetchBtn = panel.querySelector('[data-fetch]');
+    var openBtn = panel.querySelector('[data-open-bg]');
+    var openLabel = panel.querySelector('[data-open-label]');
     var fileInput = panel.querySelector('[data-file]');
     var uploadLabel = panel.querySelector('[data-upload-label]');
     var progress = panel.querySelector('[data-progress]');
@@ -600,19 +627,29 @@
         ? '<p class="hint">This link can’t play inside the page, so visitors will get a button that opens it.</p>' : '') + DV.videoHtml(v);
     }
 
+    function updateOpen() {
+      var ref = f.reference.value.replace(/\s+/g, ' ').trim();
+      var tr = f.translation.value || 'NIV';
+      openBtn.href = DV.passageUrl(ref, tr);
+      openLabel.textContent = ref ? 'Open ' + ref + ' (' + tr + ')' : 'Open the passage (' + tr + ')';
+    }
+
     var videoTimer = null;
     form.addEventListener('input', function (e) {
       var n = e.target.name;
-      if (n === 'fetch_tr') return;
       if (e.target.type === 'file') return;
       dirty = true;
       if (n === 'post_date') updateStatus();
+      if (n === 'reference') updateOpen();
+      if (n === 'translation') {
+        if (TRANSLATIONS.indexOf(f.translation.value) >= 0) DV.lsSet(LAST_TR_KEY, f.translation.value);
+        updateOpen();
+      }
       if (n === 'video_url') {
         clearTimeout(videoTimer);
         videoTimer = setTimeout(updateVideo, 450);
       }
     });
-    f.fetch_tr.addEventListener('change', function () { DV.lsSet(LAST_TR_KEY, f.fetch_tr.value); });
 
     preview.addEventListener('click', function (e) {
       if (dirty) {
@@ -621,35 +658,31 @@
       }
     });
 
-    fetchBtn.addEventListener('click', async function () {
-      var ref = f.reference.value.trim();
-      if (!ref) { setMsg(fetchMsg, 'Type the reference first, e.g. John 3:16-17.', 'err'); f.reference.focus(); return; }
-      var tr = f.fetch_tr.value;
-      var label = fetchBtn.textContent;
-      fetchBtn.disabled = true;
-      fetchBtn.textContent = 'Fetching…';
-      setMsg(fetchMsg, '');
-      try {
-        var r = await fetch('https://bible-api.com/' + encodeURIComponent(ref) + '?translation=' + encodeURIComponent(tr));
-        var data = await r.json().catch(function () { return null; });
-        if (!r.ok || !data || !data.verses || !data.verses.length) throw new Error('not found');
-        var multi = data.verses.length > 1;
-        var text = data.verses.map(function (v) {
-          return (multi ? DV.toSup(v.verse) + ' ' : '') + String(v.text).replace(/\s+/g, ' ').trim();
-        }).join(' ');
-        var current = f.verse_text.value.trim();
-        if (current && current !== text && !confirm('Replace the verse text that’s already there?')) return;
-        f.verse_text.value = text;
-        var t = FETCH_TRANSLATIONS.filter(function (x) { return x[0] === tr; })[0];
-        f.translation.value = t ? t[2] : '';
-        dirty = true;
-        setMsg(fetchMsg, 'Filled in from the ' + (data.translation_name || (t && t[1]) || 'Bible') + '. Check it looks right.', 'ok');
-      } catch (err) {
-        setMsg(fetchMsg, 'Couldn’t find “' + ref + '”. Check the spelling (e.g. “1 Corinthians 13:4-7”), or paste the text in yourself.', 'err');
-      } finally {
-        fetchBtn.disabled = false;
-        fetchBtn.textContent = label;
+    openBtn.addEventListener('click', function (e) {
+      if (!f.reference.value.trim()) {
+        e.preventDefault();
+        setMsg(fetchMsg, 'Type the reference first, e.g. John 3:16-17.', 'err');
+        f.reference.focus();
+        return;
       }
+      setMsg(fetchMsg, '');
+    });
+
+    // Pasted verses get tidied: footnote letters out, verse numbers made small.
+    f.verse_text.addEventListener('paste', function (e) {
+      var cd = e.clipboardData || window.clipboardData;
+      var raw = cd && cd.getData('text');
+      if (!raw) return;
+      var cleaned = DV.cleanPastedVerses(raw, f.reference.value);
+      if (!cleaned || cleaned === raw.trim()) return; // nothing to tidy: let the paste happen normally
+      e.preventDefault();
+      var el = f.verse_text;
+      var start = el.selectionStart;
+      var end = el.selectionEnd;
+      el.value = el.value.slice(0, start) + cleaned + el.value.slice(end);
+      el.selectionStart = el.selectionEnd = start + cleaned.length;
+      dirty = true;
+      setMsg(fetchMsg, 'Pasted and tidied up. Check it looks right.', 'ok');
     });
 
     fileInput.addEventListener('change', async function () {
@@ -711,7 +744,7 @@
         post_date: f.post_date.value,
         title: f.title.value.trim() || null,
         reference: f.reference.value.replace(/\s+/g, ' ').trim(),
-        translation: f.translation.value.trim() || null,
+        translation: f.translation.value || null,
         verse_text: f.verse_text.value.trim(),
         reflection: f.reflection.value.trim() || null,
         prayer: f.prayer.value.trim() || null,
@@ -719,7 +752,8 @@
       };
       if (!/^\d{4}-\d{2}-\d{2}$/.test(row.post_date)) { setMsg(msg, 'Pick a date for this passage.', 'err'); f.post_date.focus(); return; }
       if (!row.reference) { setMsg(msg, 'Add the Bible reference, e.g. John 3:16.', 'err'); f.reference.focus(); return; }
-      if (!row.verse_text) { setMsg(msg, 'Add the verse text (or press “Fill in the verse text”).', 'err'); f.verse_text.focus(); return; }
+      if (!row.translation) { setMsg(msg, 'Choose NIV or ESV.', 'err'); return; }
+      if (!row.verse_text) { setMsg(msg, 'Add the verse text: open the passage, copy the verses and paste them in.', 'err'); f.verse_text.focus(); return; }
       if (row.video_url && !DV.parseVideo(row.video_url)) { setMsg(msg, 'The video link should start with https://', 'err'); f.video_url.focus(); return; }
 
       var btn = form.querySelector('button[type=submit]');
@@ -757,6 +791,7 @@
 
     updateStatus();
     updateVideo();
+    updateOpen();
     if (!post) f.reference.focus();
   }
 
